@@ -33,21 +33,15 @@ import android.view.View.OnLongClickListener;
 import android.view.ViewGroup;
 import android.webkit.MimeTypeMap;
 import android.widget.ArrayAdapter;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 public class FileExplorerActivity extends ListActivity implements
 		View.OnLongClickListener, View.OnClickListener {
-
-	public static final String TYPE_PDF = "pdf";
-	public static final String TYPE_JPG = "jpg";
-	public static final String TYPE_JPEG = "jpeg";
-	public static final String TYPE_PNG = "png";
-	public static final String TYPE_GIF = "gif";
-	public static final String TYPE_MP4 = "mp4";
-	public static final String TYPE_MPG = "mpg";
-	public static final String TYPE_MPEG = "mpeg";
 
 	private ArrayList<FileItem> files;
 	private FileAdapter adapter;
@@ -67,14 +61,14 @@ public class FileExplorerActivity extends ListActivity implements
 	private static Map<String, Integer> ICON_MAP = new HashMap<String, Integer>();
 
 	static {
-		ICON_MAP.put(TYPE_PDF, R.drawable.ic_pdf);
-		ICON_MAP.put(TYPE_JPG, R.drawable.ic_pic);
-		ICON_MAP.put(TYPE_JPEG, R.drawable.ic_pic);
-		ICON_MAP.put(TYPE_PNG, R.drawable.ic_pic);
-		ICON_MAP.put(TYPE_GIF, R.drawable.ic_pic);
-		ICON_MAP.put(TYPE_MP4, R.drawable.ic_video);
-		ICON_MAP.put(TYPE_MPG, R.drawable.ic_video);
-		ICON_MAP.put(TYPE_MPEG, R.drawable.ic_video);
+		ICON_MAP.put(Constants.TYPE_PDF, R.drawable.ic_pdf);
+		ICON_MAP.put(Constants.TYPE_JPG, R.drawable.ic_pic);
+		ICON_MAP.put(Constants.TYPE_JPEG, R.drawable.ic_pic);
+		ICON_MAP.put(Constants.TYPE_PNG, R.drawable.ic_pic);
+		ICON_MAP.put(Constants.TYPE_GIF, R.drawable.ic_pic);
+		ICON_MAP.put(Constants.TYPE_MP4, R.drawable.ic_video);
+		ICON_MAP.put(Constants.TYPE_MPG, R.drawable.ic_video);
+		ICON_MAP.put(Constants.TYPE_MPEG, R.drawable.ic_video);
 	}
 
 	@Override
@@ -134,7 +128,8 @@ public class FileExplorerActivity extends ListActivity implements
 				}
 				if (!cutItems.isEmpty()) {
 					for (FileItem i : cutItems) {
-						CopyAndDeleteTask task = new CopyAndDeleteTask(i, new File(currentPath));
+						CopyAndDeleteTask task = new CopyAndDeleteTask(i,
+								new File(currentPath));
 						task.execute();
 					}
 					cutItems.clear();
@@ -172,10 +167,20 @@ public class FileExplorerActivity extends ListActivity implements
 	public void onClick(View v) {
 		FileItem item = (FileItem) getListAdapter().getItem(
 				getListView().getPositionForView(v));
-		if (item.isDirectory()) {
-			openDirectory(item.getAdress());
+		if (!markedItems.isEmpty()) {
+			if (markedItems.contains(item)) {
+				markedItems.remove(item);
+				adapter.markRow(v, false);
+			} else {
+				markedItems.add(item);
+				adapter.markRow(v, true);
+			}
 		} else {
-			openFile(item.getAdress());
+			if (item.isDirectory()) {
+				openDirectory(item.getAdress());
+			} else {
+				openFile(item.getAdress());
+			}
 		}
 	}
 
@@ -262,7 +267,9 @@ public class FileExplorerActivity extends ListActivity implements
 						copyItems.clear();
 						for (FileItem i : markedItems) {
 							copyItems.add(i);
+							adapter.markRow(i, false);
 						}
+						markedItems.clear();
 					} else {
 						copyItems.clear();
 						copyItems.add(file);
@@ -274,7 +281,9 @@ public class FileExplorerActivity extends ListActivity implements
 						copyItems.clear();
 						for (FileItem i : markedItems) {
 							cutItems.add(i);
+							adapter.markRow(i, false);
 						}
+						markedItems.clear();
 					} else {
 						cutItems.clear();
 						cutItems.add(file);
@@ -290,89 +299,6 @@ public class FileExplorerActivity extends ListActivity implements
 		AlertDialog alert = builder.create();
 		alert.show();
 
-	}
-
-	public class FileAdapter extends ArrayAdapter<FileItem> {
-
-		private LayoutInflater inflater;
-
-		public FileAdapter(Context context) {
-			super(context, R.layout.file_list_item);
-			this.inflater = getLayoutInflater();
-			if (files != null)
-				for (FileItem file : files) {
-					this.add(file);
-				}
-		}
-
-		@Override
-		public View getView(int position, View convertView, ViewGroup parent) {
-
-			FileItem item = getItem(position);
-
-			View row = inflater.inflate(R.layout.file_list_item, parent, false);
-			ImageView ivFileIcon = (ImageView) row
-					.findViewById(R.id.iv_file_icon);
-			TextView tvFileName = (TextView) row.findViewById(R.id.tv_filename);
-
-			tvFileName.setText(item.getFilename());
-			if (item.isDirectory()) {
-				ivFileIcon.setImageDrawable(getResources().getDrawable(
-						R.drawable.folder_icon));
-
-			} else {
-				ivFileIcon.setImageDrawable(getIconForFile(item.getAdress()));
-			}
-
-			row.setOnLongClickListener((OnLongClickListener) context);
-			row.setOnClickListener((OnClickListener) context);
-			return row;
-		}
-	}
-
-	public class FileItem {
-		private String filename;
-		private String adress;
-		private boolean directory;
-		private boolean marked;
-
-		public FileItem(String filename, String address, boolean isDirectory) {
-			this.filename = filename;
-			this.adress = address;
-			this.directory = isDirectory;
-		}
-
-		public String getFilename() {
-			return filename;
-		}
-
-		public void setFilename(String filename) {
-			this.filename = filename;
-		}
-
-		public String getAdress() {
-			return adress;
-		}
-
-		public void setAdress(String adress) {
-			this.adress = adress;
-		}
-
-		public boolean isDirectory() {
-			return directory;
-		}
-
-		public void setDirectory(boolean isDirectory) {
-			this.directory = isDirectory;
-		}
-
-		public boolean isMarked() {
-			return marked;
-		}
-
-		public void setMarked(boolean marked) {
-			this.marked = marked;
-		}
 	}
 
 	public class CopyTask extends AsyncTask<Void, Void, Boolean> {
@@ -407,7 +333,7 @@ public class FileExplorerActivity extends ListActivity implements
 			setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
 		}
 	}
-	
+
 	public class CopyAndDeleteTask extends AsyncTask<Void, Void, Boolean> {
 
 		private FileItem sourceLocation;
@@ -516,4 +442,160 @@ public class FileExplorerActivity extends ListActivity implements
 		fileOrDirectory.delete();
 	}
 
+	public class FileAdapter extends ArrayAdapter<FileItem> {
+
+		private boolean disableCheckedChangeListener;
+		private LayoutInflater inflater;
+
+		public FileAdapter(Context context) {
+			super(context, R.layout.file_list_item);
+			this.inflater = getLayoutInflater();
+			if (files != null)
+				for (FileItem file : files) {
+					this.add(file);
+				}
+		}
+
+		@Override
+		public View getView(int position, View convertView, ViewGroup parent) {
+
+			FileItem item = getItem(position);
+
+			final View row = inflater.inflate(R.layout.file_list_item, parent,
+					false);
+			ImageView ivFileIcon = (ImageView) row
+					.findViewById(R.id.iv_file_icon);
+			TextView tvFileName = (TextView) row.findViewById(R.id.tv_filename);
+
+			tvFileName.setText(item.getFilename());
+			if (item.isDirectory()) {
+				ivFileIcon.setImageDrawable(getResources().getDrawable(
+						R.drawable.folder_icon));
+
+			} else {
+				ivFileIcon.setImageDrawable(getIconForFile(item.getAdress()));
+			}
+
+			if (item.isMarked()) {
+				markRow(row, true);
+			}
+			CheckBox cbMarked = (CheckBox) row
+					.findViewById(R.id.checkbox_marked);
+			cbMarked.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+
+				@Override
+				public void onCheckedChanged(CompoundButton buttonView,
+						boolean isChecked) {
+					if (!disableCheckedChangeListener) {
+						if (isChecked) {
+							markedItems.add(getItem(getListView()
+									.getPositionForView(row)));
+						} else {
+							markedItems.remove(getItem(getListView()
+									.getPositionForView(row)));
+						}
+						markRow(row, isChecked);
+					}
+				}
+			});
+
+			row.setOnLongClickListener((OnLongClickListener) context);
+			row.setOnClickListener((OnClickListener) context);
+			return row;
+		}
+		
+		public View getViewForPosition(int position){
+			int wantedPosition = 10; // Whatever position you're looking for
+			int firstPosition = listView.getFirstVisiblePosition() - listView.getHeaderViewsCount(); // This is the same as child #0
+			int wantedChild = wantedPosition - firstPosition;
+			// Say, first visible position is 8, you want position 10, wantedChild will now be 2
+			// So that means your view is child #2 in the ViewGroup:
+			if (wantedChild < 0 || wantedChild >= listView.getChildCount()) {
+			  Log.w(TAG, "Unable to get view for desired position, because it's not being displayed on screen.");
+			  return;
+			}
+			// Could also check if wantedPosition is between listView.getFirstVisiblePosition() and listView.getLastVisiblePosition() instead.
+			View wantedView = listView.getChildAt(wantedChild);
+		}
+
+		public void markRow(View row, boolean mark) {
+			if (mark) {
+				row.setBackgroundColor(getResources().getColor(
+						R.color.grey_selected));
+			} else {
+				row.setBackgroundDrawable(getResources().getDrawable(
+						R.drawable.list_item_background_selector));
+			}
+			CheckBox cbMarked = (CheckBox) row
+					.findViewById(R.id.checkbox_marked);
+			disableCheckedChangeListener = true;
+			cbMarked.setChecked(mark);
+			disableCheckedChangeListener = false;
+			FileItem item = getItem(getListView().getPositionForView(row));
+			item.setMarked(mark);
+		}
+
+		public void markRow(FileItem item, boolean mark) {
+			View row = (View) getListView().getChildAt(getPosition(item));
+			if (mark) {
+				row.setBackgroundColor(getResources().getColor(
+						R.color.grey_selected));
+			} else {
+				row.setBackgroundDrawable(getResources().getDrawable(
+						R.drawable.list_item_background_selector));
+			}
+			CheckBox cbMarked = (CheckBox) row
+					.findViewById(R.id.checkbox_marked);
+			disableCheckedChangeListener = true;
+			cbMarked.setChecked(mark);
+			disableCheckedChangeListener = false;
+			item.setMarked(mark);
+
+		}
+	}
+
+	public class FileItem {
+		private String filename;
+		private String adress;
+		private boolean directory;
+		private boolean marked;
+
+		public FileItem(String filename, String address, boolean isDirectory) {
+			this.filename = filename;
+			this.adress = address;
+			this.directory = isDirectory;
+		}
+
+		public String getFilename() {
+			return filename;
+		}
+
+		public void setFilename(String filename) {
+			this.filename = filename;
+		}
+
+		public String getAdress() {
+			return adress;
+		}
+
+		public void setAdress(String adress) {
+			this.adress = adress;
+		}
+
+		public boolean isDirectory() {
+			return directory;
+		}
+
+		public void setDirectory(boolean isDirectory) {
+			this.directory = isDirectory;
+		}
+
+		public boolean isMarked() {
+			return marked;
+		}
+
+		public void setMarked(boolean marked) {
+			this.marked = marked;
+		}
+	}
 }

@@ -1,0 +1,41 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
+
+    <RelativeLayout
+        android:id="@+id/rl_path_bar"
+        android:layout_width="match_parent"
+        android:layout_height="40dip"
+        android:layout_margin="0dip" >
+
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="40dip"
+            android:layout_height="40dip"
+            android:layout_centerVertical="true"
+            android:background="@drawable/button_background_selector"
+            android:src="@drawable/ic_action_arrow_left" />
+
+        <TextView
+            android:id="@+id/tv_path"
+            style="@style/autoscroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_centerVertical="true"
+            android:layout_toRightOf="@+id/btn_back"
+            android:background="@color/grey_pressed"
+            android:padding="8dip"
+            android:textAlignment="gravity"
+            android:textColor="@color/white"
+            android:textSize="@dimen/text_size_big" />
+    </RelativeLayout>
+
+    <ListView
+        android:id="@android:id/list"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/rl_path_bar" >
+    </ListView>
+
+</RelativeLayout>

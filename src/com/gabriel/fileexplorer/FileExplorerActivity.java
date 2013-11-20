@@ -7,9 +7,15 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.apache.commons.io.filefilter.TrueFileFilter;
+
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ListActivity;
@@ -29,6 +35,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.MenuItem.OnMenuItemClickListener;
 import android.view.View.OnClickListener;
+import android.view.View.OnFocusChangeListener;
 import android.view.View.OnLongClickListener;
 import android.view.ViewGroup;
 import android.webkit.MimeTypeMap;
@@ -37,6 +44,8 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.ImageView;
+import android.widget.SearchView;
+import android.widget.SearchView.OnQueryTextListener;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -47,6 +56,7 @@ public class FileExplorerActivity extends ListActivity implements
   private FileAdapter adapter;
 
   private MenuItem pasteItem;
+  private MenuItem searchItem;
 
   private String currentPath;
 
@@ -56,6 +66,9 @@ public class FileExplorerActivity extends ListActivity implements
   private ArrayList<FileItem> copyItems;
   private ArrayList<FileItem> cutItems;
   private ArrayList<FileItem> markedItems;
+
+  private ArrayList<FileItem> searchItems;
+  private SearchTask task;
 
   private static Map<String, Integer> ICON_MAP = new HashMap<String, Integer>();
 
@@ -98,6 +111,7 @@ public class FileExplorerActivity extends ListActivity implements
     copyItems = new ArrayList<FileItem>();
     cutItems = new ArrayList<FileItem>();
     markedItems = new ArrayList<FileItem>();
+    searchItems = new ArrayList<FileItem>();
     currentPath = Environment.getExternalStorageDirectory().getAbsolutePath();
     refreshPathTextView();
     populateFilesList(currentPath);
@@ -110,6 +124,7 @@ public class FileExplorerActivity extends ListActivity implements
     // Inflate the menu; this adds items to the action bar if it is present.
     getMenuInflater().inflate(R.menu.main, menu);
     // Clear history function
+
     pasteItem = menu.findItem(R.id.paste);
     pasteItem.setOnMenuItemClickListener(new OnMenuItemClickListener() {
       @Override
@@ -137,26 +152,103 @@ public class FileExplorerActivity extends ListActivity implements
       }
     });
 
-    // searchItem = menu.findItem(R.id.action_search);
-    // mSearchView = (SearchView) searchItem.getActionView();
-    // mSearchView.setOnQueryTextListener(this);
-    // mSearchView.setOnQueryTextFocusChangeListener(new
-    // OnFocusChangeListener()
-    // {
-    //
-    // @Override
-    // public void onFocusChange(View v, boolean hasFocus) {
-    // if (!hasFocus) {
-    // searchItem.collapseActionView();
-    // setRequestedOrientation(4);
-    // }
-    // else {
-    // setRequestedOrientation(utils.getScreenOrientation());
-    // }
-    // }
-    // });
+    searchItem = menu.findItem(R.id.action_search);
+    SearchView searchView = (SearchView) searchItem.getActionView();
+    searchView.setOnQueryTextListener(new OnQueryTextListener() {
+
+      @Override
+      public boolean onQueryTextSubmit(String query) {
+        if (query.equals("")) {
+          openDirectory(currentPath);
+        }
+        else {
+          if (task != null) {
+            task.cancel(true);
+          }
+          task = new SearchTask(currentPath, query, false);
+          task.execute();
+        }
+        return false;
+      }
+
+      @Override
+      public boolean onQueryTextChange(String newText) {
+        if (newText.equals("")) {
+          openDirectory(currentPath);
+        }
+        else {
+          if (task != null) {
+            task.cancel(true);
+          }
+          task = new SearchTask(currentPath, newText, true);
+          task.execute();
+        }
+        return false;
+      }
+    });
+    searchView.setOnQueryTextFocusChangeListener(new OnFocusChangeListener() {
+
+      @SuppressLint("NewApi")
+      @Override
+      public void onFocusChange(View v, boolean hasFocus) {
+        if (!hasFocus) {
+          searchItem.collapseActionView();
+          setRequestedOrientation(4);
+        }
+        else {
+          setRequestedOrientation(Utils.getScreenOrientation());
+        }
+      }
+    });
 
     return true;
+  }
+
+  protected void showSearchResults() {
+    adapter.clear();
+    for (FileItem item : searchItems) {
+      adapter.add(item);
+    }
+    adapter.notifyDataSetChanged();
+  }
+
+  protected void searchInDirectory(final String path, final String text,
+      boolean initial) {
+    if (initial)
+      searchItems.clear();
+    Thread searchThread = new Thread(new Runnable() {
+      @Override
+      public void run() {
+
+        // Collection<File> files = FileUtils.listFiles(new File(path), new
+        // RegexFileFilter(
+        // text), TrueFileFilter.TRUE);
+        //
+        // for (File file : files) {
+        // searchItems.add(new FileItem(file.getName(), file.getPath(), false));
+        // }
+
+        File directory = new File(path);
+        if (directory.exists() && directory.isDirectory()) {
+          File[] filesList = directory.listFiles();
+          if (filesList == null) {
+            return;
+          }
+          for (File file : filesList) {
+            if (file.isDirectory()) {
+              searchInDirectory(file.getPath(), text, false);
+            }
+            else {
+              if (file.getName().toLowerCase().contains(text.toLowerCase())) {
+                searchItems.add(new FileItem(file.getName(), file.getPath(),
+                    false));
+              }
+            }
+          }
+        }
+      }
+    });
+    searchThread.run();
   }
 
   @Override
@@ -346,6 +438,38 @@ public class FileExplorerActivity extends ListActivity implements
       }
       openDirectory(currentPath);
       setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
+    }
+  }
+
+  public class SearchTask extends AsyncTask<Void, Void, Boolean> {
+
+    private String path;
+    private String text;
+    private ProgressDialog progress;
+    private boolean silent;
+
+    public SearchTask(final String path, final String text, boolean silent) {
+      this.path = path;
+      this.text = text;
+      this.silent = silent;
+    }
+
+    public void onPreExecute() {
+      searchItems.clear();
+      if (!silent)
+        progress = ProgressDialog.show(context, getString(R.string.searching),
+            getString(R.string.is_searching) + " '" + text + "'");
+    }
+
+    protected Boolean doInBackground(Void... params) {
+      searchInDirectory(path, text, true);
+      return true;
+    }
+
+    protected void onPostExecute(Boolean result) {
+      if (progress != null)
+        progress.dismiss();
+      showSearchResults();
     }
   }
 
